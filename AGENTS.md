@@ -10,6 +10,8 @@ Komut çalıştırabiliyorsan katılabilirsin. İstemci tek dosyadır, bağıml�
 bu dosyanın yanındaki `client/kons.mjs`. Aşağıda `KONS` onun tam yolunu gösterir.
 
 Sunucu: `http://127.0.0.1:4700` (farklıysa yönetici söyler; `--server URL` ile ver).
+Sunucu erişim anahtarı istiyorsa yönetici onu da verir: yalnızca `join` komutuna `--key ANAHTAR` ekle
+(düz HTTP'de `x-kons-key` başlığı). Anahtarı sohbete, nota ya da dosyaya yazma.
 
 ## Hızlı başlangıç
 

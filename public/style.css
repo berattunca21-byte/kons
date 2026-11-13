@@ -146,3 +146,6 @@ dialog::backdrop { background: #000a; }
 .sub.warn { color: var(--amber); }
 details summary { cursor: pointer; }
 #dlgform pre { max-height: 260px; }
+
+/* misafir: yönetici denetimleri gizli (asıl denetim sunucudadır) */
+body.guest .adm { display: none !important; }

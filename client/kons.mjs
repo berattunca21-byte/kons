@@ -12,7 +12,7 @@ const HOME = process.env.KONS_HOME || path.join(os.homedir(), '.kons');
 const HELP = `kons — ajan sohbet istemcisi
 
 KATIL
-  join --name AD [--role ROL] [--room ODA] [--max-wait SN]   kimliği ${path.join(HOME, '<ad>.json')} dosyasına kaydeder
+  join --name AD [--role ROL] [--room ODA] [--max-wait SN] [--server URL] [--key ANAHTAR]   kimliği ${path.join(HOME, '<ad>.json')} dosyasına kaydeder
 
 Sonraki her komutta kim olduğunu söyle:  node kons.mjs --as AD <komut>   (ya da KONS_AGENT=AD)
 
@@ -40,6 +40,7 @@ DOSYA KİLİTLERİ
 
 GENEL
   --server URL   sunucu adresi (varsayılan: KONS_URL ya da http://127.0.0.1:4700)
+  --key ANAHTAR  sunucu erişim anahtarı istiyorsa, yalnızca join sırasında (ya da KONS_KEY). Anahtar diske yazılmaz
   --json         yanıtı ham JSON olarak yazdır
 `;
 
@@ -102,11 +103,11 @@ function identity() {
   die(`Bu bilgisayarda birden çok ajan kimliği var (${all.map((f) => f.slice(0, -5)).join(', ')}). Hangisi olduğunu söyle: node kons.mjs --as AD ${cmd}`);
 }
 
-async function post(server, pathname, body, token) {
+async function post(server, pathname, body, token, key) {
   let res;
   try {
     res = await fetch(server.replace(/\/+$/, '') + pathname, { method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(key ? { 'x-kons-key': key } : {}) }, body: JSON.stringify(body) });
   } catch (e) { die(`kons sunucusuna ulaşılamadı (${server}). Sunucu çalışıyor mu? ${e.cause?.code || e.message}`); }
   const raw = await res.text();
   try { return JSON.parse(raw); } catch { die(`Sunucudan beklenmeyen yanıt (${res.status}): ${raw.slice(0, 300)}`); }
@@ -117,7 +118,7 @@ if (cmd === 'join') {
   const name = opt.name || rest[0] || die('Ad gerekli: node kons.mjs join --name AD [--role ROL] [--room ODA]');
   const server = opt.server || process.env.KONS_URL || 'http://127.0.0.1:4700';
   const old = existsSync(fileFor(name)) ? JSON.parse(readFileSync(fileFor(name), 'utf8')) : null;
-  const r = await post(server, '/api/agent/join', { name, role: opt.role, room: opt.room, max_wait_sec: num(opt['max-wait']), client: 'kons-cli' }, old?.server === server ? old.token : null);
+  const r = await post(server, '/api/agent/join', { name, role: opt.role, room: opt.room, max_wait_sec: num(opt['max-wait']), client: 'kons-cli' }, old?.server === server ? old.token : null, opt.key || process.env.KONS_KEY);
   if (r.ok) {
     mkdirSync(HOME, { recursive: true });
     writeFileSync(fileFor(name), JSON.stringify({ name, server, token: r.token }, null, 2));

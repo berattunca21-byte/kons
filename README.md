@@ -26,7 +26,9 @@ Panel: <http://127.0.0.1:4700>
 | Ortam değişkeni | Varsayılan | Anlamı |
 |---|---|---|
 | `PORT` | `4700` | Sunucu portu |
-| `HOST` | `127.0.0.1` | Dinlenen adres. Değiştirirsen yerel erişim denetimi kapanır; kimlik doğrulama yoktur, güvenmediğin ağa açma |
+| `HOST` | `127.0.0.1` | Dinlenen adres. Yerel olmayan bir adres için `KONS_KEY` zorunludur; yoksa sunucu başlamaz |
+| `KONS_KEY` | yok | Yönetici erişim anahtarı (en az 16 karakter). Ayarlanırsa giriş ve ajan katılımı anahtar ister |
+| `KONS_GUEST_KEY` | yok | Misafir anahtarı: sohbet, görev, not; ajan başlatma ve ayar yok |
 | `KONS_DATA` | `./data` | Veritabanının ve tur dosyalarının yeri |
 
 Veriler `data/kons.db` dosyasında kalıcıdır; `data/` klasörü repoya girmez.
@@ -61,12 +63,33 @@ Bir ajanın kartında **koordinatör yap**'a basınca o ajan odanın 👑 koordi
 Her ajan `team_overview` (komut: `team`) ile kimin hangi görevde olduğunu, hangi dosyaları kilitlediğini
 ve son ne dediğini görür.
 
-## Güvenlik ve maliyet
+## Başkalarıyla kullanmak ve güvenlik
 
-- Çalıştırıcı, yazdığın komutu senin kullanıcı hesabınla çalıştırır; ajanın neye izinli olduğunu o komuttaki
+Varsayılan olarak kons **yalnızca kendi bilgisayarından** erişilir ve giriş istemez. Başkalarının da
+bağlanması için paylaşımlı kipi aç:
+
+```bash
+# iki anahtar üret
+node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
+
+KONS_KEY=<yönetici-anahtarı> KONS_GUEST_KEY=<misafir-anahtarı> npm start
+```
+
+- **Yönetici anahtarı** sende kalır: ajan başlatma, komutlar, ayarlar, silme.
+- **Misafir anahtarını** arkadaşlarına verirsin: kendi adlarıyla girer, sohbete yazar, görev ve not ekler,
+  ajanlarını odaya bağlar. Ajan başlatamaz, komutları göremez, ayar değiştiremez, bir şey silemez.
+- İnternet üzerinden paylaşacaksan HTTPS veren bir tünel kullan (ör. `cloudflared tunnel --url http://127.0.0.1:4700`);
+  kons kendisi HTTPS konuşmaz.
+
+Bilmen gerekenler:
+
+- **ajan başlat**, yazdığın komutu senin kullanıcı hesabınla çalıştırır; ajanın neye izinli olduğunu o komuttaki
   bayraklar belirler. Hazır Claude Code komutu dosya düzenleyebilir, kabuk komutu çalıştıramaz.
+- Odaya yazabilen herkes ajanlara talimat verebilir. Yalnızca güvendiğin kişilere anahtar ver.
 - Otomatik fren: sen yazmadan art arda 60 ajan mesajı olursa oda duraklar (Ayarlar'dan değişir).
 - Üst üste 3 kez hata veren çalıştırıcı kendini kapatır; mesajlar kaybolmaz.
+
+Ayrıntılar ve tehdit modeli: [SECURITY.md](SECURITY.md)
 
 ## Ajan araçları
 
@@ -83,7 +106,10 @@ ve son ne dediğini görür.
 
 ## Test
 
-Sunucu çalışırken: `npm test` (sahte ajanlarla 30 denetim; kendi geçici odasını kurup siler).
+```bash
+npm test                 # işlev testi: sunucu çalışırken, sahte ajanlarla 30 denetim
+npm run test:security    # güvenlik testi: sunucuyu kendisi başlatır, 50 denetim
+```
 
 ## Proje yapısı
 
@@ -94,13 +120,16 @@ Sunucu çalışırken: `npm test` (sahte ajanlarla 30 denetim; kendi geçici oda
 | `lib/runner.js` | Çalıştırıcı: ajan komutlarını başlatır, mesaj geldikçe yeniden çalıştırır |
 | `lib/mcp.js` | MCP uç noktası ve ajan araçları |
 | `lib/rest.js` | Düz HTTP ajan arayüzü |
+| `lib/auth.js` | Erişim denetimi: yerel/paylaşımlı kip, anahtarlar, oturumlar |
 | `lib/admin.js` | Panel için durum özeti ve yönetici eylemleri |
 | `lib/db.js` | SQLite şeması (`node:sqlite`) |
 | `client/kons.mjs` | Ajanlar için komut satırı istemcisi |
 | `bridge.mjs` | Yalnızca stdio destekleyen MCP istemcileri için köprü |
 | `public/` | Tarayıcı paneli |
 | `AGENTS.md` | Sohbete katılacak ajanlar için talimat |
-| `test/smoke.mjs` | Uçtan uca duman testi |
+| `test/smoke.mjs` | Uçtan uca işlev testi |
+| `test/security.mjs` | Güvenlik testi |
+| `SECURITY.md` | Erişim kipleri, sınırlar, açık bildirme |
 
 ## Lisans
 

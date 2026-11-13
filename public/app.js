@@ -29,6 +29,7 @@ async function act(action, payload = {}) {
   try {
     const r = await fetch('/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, room: S.room, ...payload }) });
     const j = await r.json();
+    if (r.status === 401) { loginDialog(); return null; }
     if (!r.ok) throw new Error(j.error || r.statusText);
     return j;
   } catch (e) { toast(e.message); return null; }
@@ -42,7 +43,10 @@ async function load() {
   loading = true;
   try {
     const r = await fetch('/api/state?room=' + encodeURIComponent(S.room || ''));
+    if (r.status === 401) { loading = false; return loginDialog(); }
     S.st = await r.json();
+    document.body.classList.toggle('guest', S.st.me.role !== 'admin');
+    if (!es || es.readyState === 2) listen(); // girişten önce reddedilen akış kendiliğinden yeniden bağlanmaz
     if (S.room !== S.st.room.id) { S.room = S.st.room.id; store.set('kons.room', S.room); }
     if (S.tab === 'log') S.log = await (await fetch('/api/log')).json();
     render();
@@ -50,12 +54,29 @@ async function load() {
   loading = false;
   if (again) { again = false; load(); }
 }
+let es = null;
 function listen() {
-  const es = new EventSource('/api/events');
+  es?.close();
+  es = new EventSource('/api/events');
   es.onopen = () => $('#conn').classList.add('ok');
   es.onmessage = () => load();
   es.onerror = () => $('#conn').classList.remove('ok');
 }
+// Paylaşımlı kipte giriş: anahtar + sohbette görünecek ad.
+function loginDialog() {
+  if (S.locked) return;
+  S.locked = true;
+  dialog('kons — giriş', '<div class="help">Bu sunucu erişim anahtarı istiyor. Anahtarı sunucuyu çalıştıran kişiden al.</div>'
+    + field('Erişim anahtarı', 'key', '', 'type="password" required autocomplete="current-password"') + field('Sohbette görünecek adın', 'name', store.get('kons.name') || '', 'required maxlength="24" autocomplete="nickname"'),
+  async (v) => {
+    const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(v) });
+    const j = await r.json();
+    if (!r.ok) { toast(j.error || 'Giriş başarısız.'); return false; }
+    store.set('kons.name', j.name); S.locked = false; load();
+  }, 'Giriş');
+  $('#dlgform [data-close]')?.remove();
+}
+async function logout() { await fetch('/api/logout', { method: 'POST' }); location.reload(); }
 const roomAgents = () => S.st.agents.filter((a) => a.room_id === S.room);
 
 // --- çizim
@@ -74,8 +95,8 @@ function renderHead() {
   $('#head').innerHTML = `<h1># ${esc(r.name)}</h1><span class="topic" title="${esc(r.topic)}">${esc(r.topic) || '<i>konu yok</i>'}</span>
     <span class="stat">${r.lead ? `👑 ${esc(r.lead)} · ` : ''}🟢 ${n('listening')} hazır · 🟡 ${n('working')} çalışıyor${n('silent') ? ` · 🔴 ${n('silent')} sessiz` : ''}</span>
     <button data-act="pause" class="${r.paused ? 'on' : ''}" title="Duraklatınca ajanlar mesaj gönderemez">${r.paused ? '▶ Devam ettir' : '⏸ Duraklat'}</button>
-    <button data-act="room-edit" title="Konu ve ajanlara verilen talimat">📌 Brif</button>
-    <button data-act="room-menu">⋯</button>`
+    <button class="adm" data-act="room-edit" title="Konu ve ajanlara verilen talimat">📌 Brif</button>
+    <button class="adm" data-act="room-menu">⋯</button>${S.st.me.shared ? `<button data-act="logout" title="Çıkış yap">👤 ${esc(S.st.me.name)}${S.st.me.role === 'admin' ? '' : ' (misafir)'} ⎋</button>` : ''}`
     + (r.paused ? '<div class="paused-bar" style="flex-basis:100%;margin:6px -16px -10px">Oda duraklatıldı — ajanlar bekliyor, yalnızca sen yazabilirsin.</div>' : '');
 }
 function msgHtml(m, byName) {
@@ -85,7 +106,7 @@ function msgHtml(m, byName) {
   const orig = m.reply_to ? S.byId[m.reply_to] : null;
   return `<div class="msg ${human ? 'human' : ''} ${m.kind === 'question' ? 'question' : ''} ${m.resolved ? 'resolved' : ''} ${m.to_name ? 'dm' : ''}" data-id="${m.id}">
     <div class="av" style="background:${human ? 'var(--accent)' : color(m.from_name)}">${human ? '👤' : esc([...m.from_name][0].toLocaleUpperCase('tr'))}</div>
-    <div class="body"><div class="meta"><b>${esc(m.from_name)}</b><span class="role">${human ? 'yönetici' : esc(a?.role || '')}</span>
+    <div class="body"><div class="meta"><b>${esc(m.from_name)}</b><span class="role">${human ? (m.from_name === S.st.settings.human_name ? 'yönetici' : 'insan') : esc(a?.role || '')}</span>
       ${m.to_name ? `<span class="tag dm">🔒 özel → ${esc(m.to_name)}</span>` : ''}
       ${m.kind === 'question' ? (m.resolved ? '<span class="tag ok">soru · yanıtlandı</span>' : '<span class="tag qn">SORU</span>') : ''}
       <span class="t">#${m.id} · ${time(m.created_at)}</span></div>
@@ -129,12 +150,13 @@ function renderTabs() {
   if ($('#tab').contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return; // açık menüyü kapatma
   $('#tab').innerHTML = ({ agents: tabAgents, tasks: tabTasks, notes: tabNotes, locks: tabLocks, log: tabLog })[S.tab]();
 }
+const GUEST_ACTS = new Set(['at', 'dm']); // misafirin kartta görebildiği düğmeler
 function agentCard(a) {
   const inRoom = a.room_id === S.room, r = a.runner, hasLead = !!S.st.room.lead, lead = inRoom && S.st.room.lead === a.name;
   const pres = a.running ? `çalışıyor · ${ago(a.working_since || Date.now())}` : r?.on && a.room_id ? 'hazır' : a.presence === 'working' && a.working_since ? `çalışıyor · ${ago(a.working_since)}` : a.presence === 'silent' ? `sessiz · ${ago(a.last_seen)}` : PRES[a.presence];
   const mine = S.st.tasks.filter((t) => t.assignee === a.name && t.status !== 'done');
   const held = S.st.locks.filter((l) => l.owner === a.name);
-  const b = (act, label, cls = '', title = '') => `<button data-act="${act}" data-id="${a.id}" data-name="${esc(a.name)}" class="${cls}" title="${title}">${label}</button>`;
+  const b = (act, label, cls = '', title = '') => `<button data-act="${act}" data-id="${a.id}" data-name="${esc(a.name)}" class="${cls} ${GUEST_ACTS.has(act) ? '' : 'adm'}" title="${title}">${label}</button>`;
   return `<div class="card ${lead ? 'lead' : ''}"><div class="top"><span class="dot ${a.presence}"></span><b>${lead ? '👑 ' : ''}${esc(a.name)}</b><span class="role">${esc(a.role)}</span><span class="pres">${pres}</span></div>
     ${a.status ? `<div class="sub">💬 ${esc(a.status)}</div>` : ''}
     ${mine.length ? `<div class="sub">📋 ${mine.map((t) => `#${t.id} ${esc(t.title)}`).join(' · ')}</div>` : ''}
@@ -153,7 +175,7 @@ function agentCard(a) {
 }
 function tabAgents() {
   const here = roomAgents(), others = S.st.agents.filter((a) => a.room_id !== S.room);
-  return `<div class="sec"><span>Bu odada (${here.length})</span><span><button class="mini" data-act="a-spawn" title="Ajanı kons başlatsın ve mesaj geldikçe uyandırsın">+ ajan başlat</button> ${here.length ? '<button class="mini danger" data-act="dismiss-all" title="Tüm ajanlara durmalarını söyler">oturumu bitir</button>' : ''}</span></div>`
+  return `<div class="sec"><span>Bu odada (${here.length})</span><span><button class="mini adm" data-act="a-spawn" title="Ajanı kons başlatsın ve mesaj geldikçe uyandırsın">+ ajan başlat</button> ${here.length ? '<button class="mini danger adm" data-act="dismiss-all" title="Tüm ajanlara durmalarını söyler">oturumu bitir</button>' : ''}</span></div>`
     + (here.map(agentCard).join('') || '<div class="help">Bu odada ajan yok.<br><b>+ ajan başlat</b>: ajanı kons çalıştırır, mesaj geldikçe uyandırır (durma sorunu olmaz).<br><b>🔌 Ajan bağla</b>: kendi açtığın bir ajanı odaya çağırırsın.</div>')
     + (others.length ? `<div class="sec"><span>Diğer / ayrılmış (${others.length})</span></div>` + others.map(agentCard).join('') : '');
 }
@@ -224,8 +246,9 @@ function connectDialog() {
   };
   const draw = (v = {}) => {
     const name = (v.name ?? 'Ali').trim() || 'Ali', role = (v.role ?? 'programcı').trim(), room = v.room ?? S.room;
+    const remote = S.st.me.shared ? ` Sunucu: ${location.origin} (join komutuna --server ile ver); erişim anahtarını sana ayrıca vereceğim (--key).` : '';
     const prompt = S.client === 'any'
-      ? `kons sohbetine katıl: "${guide}" dosyasındaki talimatları izle. Adın "${name}"${role ? `, rolün "${role}"` : ''}, oda "${room}". Katıldıktan sonra odayı dinle, gelen mesajlara göre çalış ve yönetici seni çıkarana kadar sohbette kal; turunu bitirme.`
+      ? `kons sohbetine katıl: "${guide}" dosyasındaki talimatları izle. Adın "${name}"${role ? `, rolün "${role}"` : ''}, oda "${room}". Katıldıktan sonra odayı dinle, gelen mesajlara göre çalış ve yönetici seni çıkarana kadar sohbette kal; turunu bitirme.` + remote
       : `kons sohbetine katıl: kons MCP sunucusunun join aracını name="${name}"${role ? `, role="${role}"` : ''}, room="${room}" ile çağır. Ardından wait_for_messages ile odayı dinle, gelen mesajlara göre çalış ve her işten sonra yeniden wait_for_messages çağır. Yönetici seni çıkarana kadar bu döngüden çıkma, turunu bitirme.`;
     return `<div class="seg">${Object.entries(C).map(([k, [label]]) => `<button type="button" data-client="${k}" class="${S.client === k ? 'on' : ''}">${label}</button>`).join('')}</div>
       ${C[S.client][1]}
@@ -276,7 +299,7 @@ const agentOf = (d) => S.st.agents.find((x) => x.id == d.id);
 const A = {
   room: (d) => { S.room = d.id; store.set('kons.room', S.room); S.older = []; S.dm = S.reply = null; load(); },
   tab: (d) => { S.tab = d.id; store.set('kons.tab', S.tab); load(); },
-  send, connect: connectDialog,
+  send, connect: connectDialog, logout,
   older: async () => {
     const first = [...S.older, ...S.st.messages][0];
     const list = await (await fetch(`/api/messages?room=${encodeURIComponent(S.room)}&before=${first.id}`)).json();
@@ -394,6 +417,6 @@ $('#input').addEventListener('keydown', (e) => {
   }
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
 });
+$('#dlg').addEventListener('cancel', (e) => { if (S.locked) e.preventDefault(); }); // giriş penceresi Esc ile kapanmasın
 setInterval(() => { if (S.st && !$('#dlg').open) renderTabs(); }, 15000); // "3 dk önce" gibi süreler güncel kalsın
-listen();
-load();
+load(); // canlı akış ilk başarılı yüklemede açılır

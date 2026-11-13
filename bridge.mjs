@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // stdio ↔ HTTP köprüsü: yalnızca "komut çalıştıran" (stdio) MCP sunucularını destekleyen istemciler için.
 // Kullanım (istemcinin MCP ayarında):  command: "node", args: ["<bu dosyanın tam yolu>"]
-// İsteğe bağlı ortam değişkeni: KONS_URL (varsayılan http://127.0.0.1:4700/mcp)
+// İsteğe bağlı ortam değişkenleri: KONS_URL (varsayılan http://127.0.0.1:4700/mcp), KONS_KEY (sunucu erişim anahtarı istiyorsa)
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 
@@ -16,7 +16,7 @@ async function forward(line) {
   try {
     const res = await fetch(URL_, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'Mcp-Session-Id': SID },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'Mcp-Session-Id': SID, ...(process.env.KONS_KEY ? { 'x-kons-key': process.env.KONS_KEY } : {}) },
       body: line,
     });
     if (res.status === 202 || !res.body) return;
