@@ -245,15 +245,15 @@ function connectDialog() {
       <div class="help">Köprü, stdio üzerinden gelen çağrıları bu sunucuya aktarır. HTTP destekleyen istemcilerde doğrudan şu adresi de kullanabilirsin: <code>${esc(url)}</code></div>`],
   };
   const draw = (v = {}) => {
-    const name = (v.name ?? 'Ali').trim() || 'Ali', role = (v.role ?? 'programcı').trim(), room = v.room ?? S.room;
+    const name = (v.name ?? '').trim(), role = (v.role ?? '').trim(), room = v.room ?? S.room;
     const remote = S.st.me.shared ? ` Sunucu: ${location.origin} (join komutuna --server ile ver); erişim anahtarını sana ayrıca vereceğim (--key).` : '';
     const prompt = S.client === 'any'
-      ? `kons sohbetine katıl: "${guide}" dosyasındaki talimatları izle. Adın "${name}"${role ? `, rolün "${role}"` : ''}, oda "${room}". Katıldıktan sonra odayı dinle, gelen mesajlara göre çalış ve yönetici seni çıkarana kadar sohbette kal; turunu bitirme.` + remote
-      : `kons sohbetine katıl: kons MCP sunucusunun join aracını name="${name}"${role ? `, role="${role}"` : ''}, room="${room}" ile çağır. Ardından wait_for_messages ile odayı dinle, gelen mesajlara göre çalış ve her işten sonra yeniden wait_for_messages çağır. Yönetici seni çıkarana kadar bu döngüden çıkma, turunu bitirme.`;
+      ? `kons sohbetine katıl: "${guide}" dosyasındaki talimatları izle. ${name ? `Adın "${name}"` : 'Adını kendin seç'}${role ? `, rolün "${role}"` : ''}, oda "${room}". Katıldıktan sonra odayı dinle, gelen mesajlara göre çalış ve yönetici seni çıkarana kadar sohbette kal; turunu bitirme.` + remote
+      : `kons sohbetine katıl: kons MCP sunucusunun join aracını ${name ? `name="${name}"` : 'kendi seçtiğin kısa bir adla (name)'}${role ? `, role="${role}"` : ''}, room="${room}" ile çağır. Ardından wait_for_messages ile odayı dinle, gelen mesajlara göre çalış ve her işten sonra yeniden wait_for_messages çağır. Yönetici seni çıkarana kadar bu döngüden çıkma, turunu bitirme.`;
     return `<div class="seg">${Object.entries(C).map(([k, [label]]) => `<button type="button" data-client="${k}" class="${S.client === k ? 'on' : ''}">${label}</button>`).join('')}</div>
       ${C[S.client][1]}
-      <div class="step">${S.client === 'claude' ? 3 : S.client === 'any' ? 1 : 2} · Ajana şunu söyle (her ajan için ad ve rolü değiştir)</div>
-      <div class="grid2">${field('Ad', 'name', name, 'data-live')}${field('Rol', 'role', role, 'data-live')}</div>
+      <div class="step">${S.client === 'claude' ? 3 : S.client === 'any' ? 1 : 2} · Ajana şunu söyle (ad ve rolü boş bırakırsan ajan kendisi seçer)</div>
+      <div class="grid2">${field('Ad', 'name', name, 'data-live placeholder="boş: ajan kendi seçer"')}${field('Rol', 'role', role, 'data-live placeholder="boş: ajan kendi seçer"')}</div>
       ${field('Oda', 'room', room, 'data-live')}
       <div id="prompt">${copyBox(prompt)}</div>`;
   };

@@ -33,6 +33,45 @@ Panel: <http://127.0.0.1:4700>
 
 Veriler `data/kons.db` dosyasında kalıcıdır; `data/` klasörü repoya girmez.
 
+## Kullanım: ilk oturum
+
+**1. Sunucuyu aç.** `npm start` (Windows'ta `start.bat`). Panel tarayıcıda açılır: <http://127.0.0.1:4700>
+Panel aynı zamanda sohbetin kendisidir; alttaki kutuya yazdığın her şey odaya düşer.
+
+**2. Bir oda aç (isteğe bağlı).** Solda *Odalar*'ın yanındaki **+**. Kalıcı talimatın varsa (hedef, proje klasörü,
+kurallar) **📌 Brif**'e yaz; odaya katılan her ajan onu görür.
+
+**3. Ajanları çağır.** En kısa yol: ajanın kendi uygulamasına (Devin, Codex, Gemini, Claude Code, OpenCode…)
+`AGENTS.md` dosyasının yolunu verip katılmasını söylemek:
+
+```text
+Şu dosyadaki talimatları izleyerek kons sohbetine katıl: C:\yol\kons\AGENTS.md
+```
+
+Hepsi bu. Ajan dosyayı okur, **kendine bir ad ve rol seçer**, odaya katılır ve dinlemeye başlar. Sağdaki
+*Ajanlar* sekmesinde 🟢 olarak görünür. Her ajan için aynı cümleyi kullanabilirsin.
+
+- Yolu kopyalamak için: Windows'ta dosyaya Shift + sağ tık → *Yol olarak kopyala*; macOS'ta Option + sağ tık → *Yol Adı Olarak Kopyala*.
+- Adı, rolü ya da odayı sen belirlemek istersen cümleye ekle: *"… Adın Devin, rolün programcı, oda oyun."*
+- Paneldeki **🔌 Ajan bağla** bu cümleyi doğru yolla hazır verir; kopyalayıp yapıştırırsın.
+- Ajan dosyalarına erişemiyorsa adresi ver: `http://127.0.0.1:4700/AGENTS.md`
+- İki ajan aynı adı seçerse ikincisine "ad kullanımda" denir ve başka bir ad alır.
+
+**4. Bir koordinatör seç (önerilir).** Bir ajanın kartında **koordinatör yap**. Hedefi o görevlere böler ve dağıtır;
+diğerleri yalnızca kendilerine iş düştüğünde uyanır.
+
+**5. Hedefi yaz.** Alttaki kutuya: *"Birlikte şöyle bir oyun yapacağız: …"*. Birine özel seslenmek için `@Ad`,
+herkese için `@herkes`.
+
+**6. İzle ve yönet.** Sağdaki sekmeler: *Görevler* (kim neyi yapıyor), *Notlar* (ortak kararlar), *Kilitler*
+(kim hangi dosyada), *Günlük*. Ajanlar sana soru sorarsa sohbetin üstünde sarı şeritte çıkar. İşler karışırsa
+**⏸ Duraklat**.
+
+**7. Bitir.** *Ajanlar → oturumu bitir* tüm ajanlara durmalarını söyler.
+
+**Bir ajan 🔴 sessiz görünürse** turunu bitirmiş demektir: kendi penceresinde "sohbete dön" de. Bunun olmaması için
+ajanı kons'un çalıştırmasını sağlayabilirsin (aşağıda 1. yol).
+
 ## Ajanları odaya almanın üç yolu
 
 **1. Ajan başlat (önerilen) — ajanı kons çalıştırır.** Panelde *Ajanlar → + ajan başlat*: ad, rol ve ajanın

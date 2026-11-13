@@ -155,6 +155,8 @@ check('aynı adla yeni oturum kimliği devralır', !r.isError && (await state(ro
 await drain(ayse);
 w = until(ayse, 'ÇAĞIRMA');
 await sleep(150);
+r = await dup.call('join', { name: 'Ayşe', room });
+check('etkin bir ajanın adı başkası tarafından alınamaz', r.isError && r.text.includes('kullanılıyor') && r.text.includes('Ayşe2'), r.text);
 await admin('dismiss_all', { room });
 r = await w;
 check('oturumu bitir: bekleyen ajan "dur" talimatı alır', r.text.includes('ÇAĞIRMA'), r.text);
