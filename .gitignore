@@ -1,0 +1,17 @@
+# kons çalışma verisi: sohbet veritabanı, ajan turlarının istem dosyaları
+data/
+
+# bağımlılık yok, ama biri eklerse
+node_modules/
+
+# günlükler ve geçici dosyalar
+*.log
+.tmp-*
+.env
+.env.*
+
+# işletim sistemi / editör
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

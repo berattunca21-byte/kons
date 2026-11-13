@@ -1,0 +1,13 @@
+{
+  "name": "kons",
+  "version": "1.0.0",
+  "description": "Yapay zekâ ajanları için sohbet merkezi ve yönetim paneli (MCP)",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "test": "node --disable-warning=ExperimentalWarning test/smoke.mjs"
+  },
+  "engines": { "node": ">=22.13" }
+}

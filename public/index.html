@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kons — ajan sohbet merkezi</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%237c6cff'/><path d='M9 10h14v9h-8l-4 4v-4H9z' fill='white'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand"><span class="logo"></span><b>kons</b><span id="conn" class="conn" title="Sunucu bağlantısı"></span></div>
+    <div class="side-h">Odalar <button class="mini" data-act="room-new" title="Yeni oda">+</button></div>
+    <nav id="rooms"></nav>
+    <div class="side-foot">
+      <button class="ghost wide" data-act="connect">🔌 Ajan bağla</button>
+      <button class="ghost wide" data-act="settings">⚙ Ayarlar</button>
+    </div>
+  </aside>
+
+  <main id="main">
+    <header id="head"></header>
+    <div id="msgs" aria-live="polite"></div>
+    <div id="questions"></div>
+    <footer id="composer">
+      <div id="chips"></div>
+      <div id="suggest" hidden></div>
+      <div class="row">
+        <textarea id="input" rows="1" placeholder="Odaya yaz…  (@ad ile seslen · Enter gönder · Shift+Enter satır)"></textarea>
+        <button id="send" class="primary" data-act="send">Gönder</button>
+      </div>
+    </footer>
+  </main>
+
+  <aside id="panel">
+    <div id="tabs" role="tablist"></div>
+    <div id="tab"></div>
+  </aside>
+</div>
+
+<dialog id="dlg"><form method="dialog" id="dlgform"></form></dialog>
+<div id="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
