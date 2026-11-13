@@ -148,7 +148,9 @@ server.on('error', (e) => {
   console.error(e.code === 'EADDRINUSE' ? `Port ${PORT} kullanımda. kons zaten çalışıyor olabilir; ya da PORT ortam değişkeniyle başka port seç.` : e);
   process.exit(1);
 });
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { runner.stopAll(); process.exit(0); });
+// Ajan süreçleri ayrı süreç grubunda (detached): sunucu hangi yolla kapanırsa kapansın onları da sonlandır.
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => { runner.stopAll(); process.exit(0); });
+process.on('exit', () => runner.stopAll());
 server.listen(PORT, HOST, () => {
   const mode = auth.shared
     ? `PAYLAŞIMLI — giriş ve ajan katılımı anahtar ister${auth.guestKey ? ' (misafir anahtarı tanımlı)' : ''}.\n          İnternete açacaksan yalnızca HTTPS veren bir tünel/vekil arkasında kullan.`

@@ -101,7 +101,7 @@ function renderHead() {
 }
 function msgHtml(m, byName) {
   if (m.from_kind === 'system') return `<div class="msg sys" data-id="${m.id}"><span class="t">${time(m.created_at)}</span> ${rich(m.text)}</div>`;
-  const human = m.from_kind === 'human';
+  const human = m.from_kind === 'human' || m.from_kind === 'guest';
   const a = byName[m.from_name];
   const orig = m.reply_to ? S.byId[m.reply_to] : null;
   return `<div class="msg ${human ? 'human' : ''} ${m.kind === 'question' ? 'question' : ''} ${m.resolved ? 'resolved' : ''} ${m.to_name ? 'dm' : ''}" data-id="${m.id}">

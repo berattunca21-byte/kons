@@ -1,6 +1,6 @@
 // Güvenlik testi: sunucuyu geçici veriyle kendisi başlatır.  Çalıştır:  npm run test:security
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { request } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -77,7 +77,7 @@ const A = { cookie: admin.cookie }, G = { cookie: guest.cookie };
 const cmd = `"${process.execPath}" -e "console.log('-')"`;
 check('yönetici ajan başlatabilir', (await call(B, '/api/action', { ...A, method: 'POST', body: { action: 'agent_spawn', room: 'genel', name: 'Robo', start: cmd } })).status === 200);
 check('misafir ajan adını alamaz', (await call(B, '/api/login', { method: 'POST', body: { key: GUEST, name: 'Robo' } })).status === 400);
-for (const action of ['agent_spawn', 'agent_runner', 'agent_run', 'settings_update', 'room_delete', 'room_clear', 'room_update', 'room_lead', 'agent_delete', 'room_create']) {
+for (const action of ['agent_spawn', 'agent_runner', 'agent_run', 'settings_update', 'room_delete', 'room_clear', 'room_update', 'room_lead', 'agent_delete', 'room_create', 'task_delete', 'note_delete', 'message_delete']) {
   const r = await call(B, '/api/action', { ...G, method: 'POST', body: { action, room: 'genel', id: 1, name: 'Kotu', start: 'calc', settings: {} } });
   check(`misafir yapamaz: ${action}`, r.status === 400 && /yönetici yetkisi/.test(r.j.error), JSON.stringify(r.j));
 }
@@ -88,12 +88,15 @@ check('yönetici komutu görür', (await call(B, '/api/state', A)).j.agents[0].r
 await call(B, '/api/action', { ...G, method: 'POST', body: { action: 'send', room: 'genel', text: 'merhaba' } });
 await call(B, '/api/action', { ...G, method: 'POST', body: { action: 'task_create', room: 'genel', title: 'deneme' } });
 const st = (await call(B, '/api/state', A)).j;
-check('misafir kendi adıyla yazar ve görev ekler', st.messages.some((m) => m.from_name === 'Konuk' && m.from_kind === 'human' && m.text === 'merhaba') && st.tasks[0]?.created_by === 'Konuk', JSON.stringify(st.tasks));
+check('misafir kendi adıyla yazar ve görev ekler', st.messages.some((m) => m.from_name === 'Konuk' && m.from_kind === 'guest' && m.text === 'merhaba') && st.tasks[0]?.created_by === 'Konuk', JSON.stringify(st.tasks));
 check('başka siteden çerezli istek reddedilir', (await call(B, '/api/action', { ...A, method: 'POST', body: { action: 'room_create', name: 'x' }, headers: { Origin: 'https://kotu.example.com' } })).status === 403);
 
 const j = await call(B, '/api/agent/join', { method: 'POST', body: { name: 'Uzak', room: 'genel' }, headers: { 'x-kons-key': GUEST } });
 check('ajan misafir anahtarıyla katılır', j.status === 200 && !!j.j.token, JSON.stringify(j.j).slice(0, 200));
 check('ajan sonra yalnızca kendi kimliğiyle çalışır', (await call(B, '/api/agent/call', { method: 'POST', body: { tool: 'list_agents' }, headers: { Authorization: `Bearer ${j.j.token}` } })).j?.ok === true);
+const hist = (await call(B, '/api/agent/call', { method: 'POST', body: { tool: 'read_history', args: {} }, headers: { Authorization: `Bearer ${j.j.token}` } })).j?.text || '';
+check('misafir mesajı ajana yönetici olarak gösterilmez', hist.includes('Konuk (misafir') && !hist.includes('Konuk (yönetici)'), hist.slice(-400));
+check('anahtar URL\'de (?key=) kabul edilmez', (await call(B, `/mcp?key=${GUEST}`, { method: 'POST', body: { jsonrpc: '2.0', id: 1, method: 'tools/list' } })).status === 401);
 check('MCP anahtarla açılır', (await call(B, '/mcp', { method: 'POST', body: { jsonrpc: '2.0', id: 1, method: 'tools/list' }, headers: { 'x-kons-key': GUEST } })).j?.result?.tools?.length > 10);
 
 await call(B, '/api/logout', { ...G, method: 'POST' });
@@ -102,6 +105,45 @@ check('çıkıştan sonra oturum geçersiz', (await call(B, '/api/state', G)).st
 for (let i = 0; i < 8; i++) await call(B, '/api/login', { method: 'POST', body: { key: `deneme-anahtari-${i}-000000`, name: 'x' } });
 check('art arda hatalı denemede giriş kilitlenir', (await call(B, '/api/login', { method: 'POST', body: { key: ADMIN, name: 'Patron' } })).status === 429);
 shared.child.kill();
+
+// --- 4. deneme sınırı istemci adresine göre: saldırgan yöneticiyi kilitleyemez (tünel arkasında KONS_TRUST_PROXY=1)
+const T = 'http://127.0.0.1:4784';
+const proxied = start({ KONS_KEY: ADMIN, KONS_TRUST_PROXY: '1' }, 4784); await proxied.ready();
+const from = (ip) => ({ 'x-forwarded-for': ip });
+// saldırgan XFF'nin solunu ve CF başlığını her denemede değiştirir; vekilin eklediği en sağdaki adres sabittir
+for (let i = 0; i < 8; i++) await call(T, '/api/login', { method: 'POST', body: { key: `deneme-anahtari-${i}-000000`, name: 'x' }, headers: { 'x-forwarded-for': `10.0.0.${i}, 203.0.113.9`, 'cf-connecting-ip': `10.9.9.${i}` } });
+check('saldırganın adresi kilitlenir', (await call(T, '/api/login', { method: 'POST', body: { key: ADMIN, name: 'Patron' }, headers: from('203.0.113.9') })).status === 429);
+check('uydurma başlıkla kilit aşılamaz', (await call(T, '/api/login', { method: 'POST', body: { key: ADMIN, name: 'Patron' }, headers: { 'x-forwarded-for': '10.0.0.99, 203.0.113.9' } })).status === 429);
+check('başka adresten yönetici girebilir', (await call(T, '/api/login', { method: 'POST', body: { key: ADMIN, name: 'Patron' }, headers: from('198.51.100.7') })).status === 200);
+proxied.child.kill();
+
+// --- 5. durdurulan turun alt süreçleri de sonlanır (süreç grubu)
+if (process.platform !== 'win32') {
+  const P = 'http://127.0.0.1:4785';
+  const loc = start({}, 4785); await loc.ready();
+  const pidFile = path.join(tmp, 'torun.pid');
+  const longCmd = `sleep 300 & echo $! > "${pidFile}"; wait`;
+  await call(P, '/api/action', { method: 'POST', body: { action: 'agent_spawn', room: 'genel', name: 'Uzun', start: longCmd } });
+  const id = (await call(P, '/api/state')).j.agents.find((a) => a.name === 'Uzun').id;
+  await call(P, '/api/action', { method: 'POST', body: { action: 'agent_run', id, prompt: 'x' } });
+  for (let i = 0; i < 50 && !existsSync(pidFile); i++) await sleep(100);
+  const pid = existsSync(pidFile) ? Number(readFileSync(pidFile, 'utf8').trim()) : 0;
+  await call(P, '/api/action', { method: 'POST', body: { action: 'agent_stop', id } });
+  await sleep(800);
+  const alive = (n) => { try { process.kill(n, 0); return true; } catch { return false; } };
+  check('durdurulan turun alt süreci (torun) de sonlanır', pid > 0 && !alive(pid), `pid=${pid}`);
+  if (pid && alive(pid)) process.kill(pid);
+
+  // terminal kapanınca (SIGHUP) sunucu çıkarken çalışan turun alt süreçlerini de sonlandırır
+  const pidFile2 = path.join(tmp, 'torun2.pid');
+  await call(P, '/api/action', { method: 'POST', body: { action: 'agent_runner', id, on: true, start: `sleep 300 & echo $! > "${pidFile2}"; wait` } });
+  await call(P, '/api/action', { method: 'POST', body: { action: 'agent_run', id, prompt: 'x' } });
+  for (let i = 0; i < 50 && !existsSync(pidFile2); i++) await sleep(100);
+  const pid2 = existsSync(pidFile2) ? Number(readFileSync(pidFile2, 'utf8').trim()) : 0;
+  loc.child.kill('SIGHUP'); await loc.exited; await sleep(500);
+  check('sunucu SIGHUP ile kapanınca ajan alt süreci de sonlanır', pid2 > 0 && !alive(pid2), `pid=${pid2}`);
+  if (pid2 && alive(pid2)) process.kill(pid2);
+}
 
 await sleep(300);
 try { rmSync(tmp, { recursive: true, force: true }); } catch { /* Windows dosyayı bırakmamış olabilir */ }
