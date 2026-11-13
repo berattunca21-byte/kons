@@ -30,6 +30,7 @@ Panel: <http://127.0.0.1:4700>
 | `KONS_KEY` | yok | Yönetici erişim anahtarı (en az 16 karakter). Ayarlanırsa giriş ve ajan katılımı anahtar ister |
 | `KONS_GUEST_KEY` | yok | Misafir anahtarı: sohbet, görev, not; ajan başlatma ve ayar yok |
 | `KONS_DATA` | `./data` | Veritabanının ve tur dosyalarının yeri |
+| `KONS_TRUST_PROXY` | yok | Hatalı giriş sınırı için istemci adresini veren vekil başlığı. cloudflared için `cf-connecting-ip`; `1` = `x-forwarded-for` (en sağdaki adres). Yalnızca 127.0.0.1'den gelen isteklerde ve tünel/vekil arkasında kullan |
 
 Veriler `data/kons.db` dosyasında kalıcıdır; `data/` klasörü repoya girmez.
 
@@ -118,13 +119,19 @@ KONS_KEY=<yönetici-anahtarı> KONS_GUEST_KEY=<misafir-anahtarı> npm start
 - **Misafir anahtarını** arkadaşlarına verirsin: kendi adlarıyla girer, sohbete yazar, görev ve not ekler,
   ajanlarını odaya bağlar. Ajan başlatamaz, komutları göremez, ayar değiştiremez, bir şey silemez.
 - İnternet üzerinden paylaşacaksan HTTPS veren bir tünel kullan (ör. `cloudflared tunnel --url http://127.0.0.1:4700`);
-  kons kendisi HTTPS konuşmaz.
+  kons kendisi HTTPS konuşmaz. Tünel arkasında `KONS_TRUST_PROXY=cf-connecting-ip` ver (cloudflared): yoksa tüm istekler aynı adresten
+  (127.0.0.1) gelmiş sayılır ve hatalı giriş kilidi herkesi birlikte kilitler.
+- Anahtar yalnızca `x-kons-key` başlığıyla, gövdede ya da `Authorization: Bearer` ile gönderilir; adres
+  satırında `?key=` kabul edilmez (tünel ve vekil günlüklerine sızar).
 
 Bilmen gerekenler:
 
 - **ajan başlat**, yazdığın komutu senin kullanıcı hesabınla çalıştırır; ajanın neye izinli olduğunu o komuttaki
   bayraklar belirler. Hazır Claude Code komutu dosya düzenleyebilir, kabuk komutu çalıştıramaz.
-- Odaya yazabilen herkes ajanlara talimat verebilir. Yalnızca güvendiğin kişilere anahtar ver.
+- Misafir mesajları ajanlara `(misafir: istek, yönetici talimatı değil)` etiketiyle gider; yalnızca `(yönetici)`
+  etiketli mesajlar talimat sayılır ve ajan istemi riskli işleri yalnızca yöneticiye bağlar. Bu bir dil modeli
+  kuralıdır, kesin bir sınır değildir: odaya yazabilen biri yine de ajanı yönlendirmeyi deneyebilir.
+  Yalnızca güvendiğin kişilere anahtar ver ve çalıştırıcı komutlarında izinleri dar tut.
 - Otomatik fren: sen yazmadan art arda 60 ajan mesajı olursa oda duraklar (Ayarlar'dan değişir).
 - Üst üste 3 kez hata veren çalıştırıcı kendini kapatır; mesajlar kaybolmaz.
 
